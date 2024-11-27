@@ -1,8 +1,11 @@
 ﻿using System.Diagnostics;
+using Singleton.Interfaces;
+
 
 namespace Singleton
 {
-    public class Logger
+   
+    public class Logger : ILogger
     {
        
         //private static Logger _instance;
