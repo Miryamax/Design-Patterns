@@ -16,5 +16,7 @@ namespace Iterator
             Name = name;
             Country = country;
         }
+
+        
     }
 }
