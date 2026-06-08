@@ -1,0 +1,35 @@
+name: Daily Morning Motivation
+
+# Runs at 07:00 UTC = 10:00 AM Israel time (IDT, UTC+3) on weekdays.
+# In winter (IST, UTC+2) this fires at 09:00 — adjust cron to "0 8 * * 1-5" if needed.
+#
+# Required repository secrets (Settings → Secrets → Actions):
+#   JIRA_EMAIL        - your Jira login email (miryamma@etoro.com)
+#   JIRA_TOKEN        - Jira API token from https://id.atlassian.com/manage-profile/security/api-tokens
+#   TEAMS_WEBHOOK_URL - incoming-webhook URL from your Teams channel connector
+
+on:
+  schedule:
+    - cron: '0 7 * * 1-5'   # weekdays 10:00 AM Israel time (IDT)
+  workflow_dispatch:          # manual trigger for testing
+
+jobs:
+  send-motivation:
+    name: Send daily motivation + Jira task
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Send Teams notification
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        run: python3 .github/scripts/send_motivation.py
