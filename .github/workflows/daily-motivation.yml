@@ -1,0 +1,34 @@
+name: Daily Motivation Email
+
+on:
+  schedule:
+    # 07:00 UTC = 10:00 AM Israel Summer Time (UTC+3)
+    # In winter (UTC+2) this fires at 09:00 IL — adjust to 0 8 * * * if needed
+    - cron: "0 7 * * 1-5"   # weekdays only; use "0 7 * * *" for every day
+  workflow_dispatch: {}      # allow manual trigger from GitHub UI
+
+jobs:
+  send-email:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Send daily motivation email
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          GMAIL_SENDER: ${{ secrets.GMAIL_SENDER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RECIPIENT_EMAIL: miryamax2004@gmail.com
+        run: python scripts/daily_motivation.py
