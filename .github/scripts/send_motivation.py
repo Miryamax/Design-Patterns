@@ -52,16 +52,17 @@ def fetch_backlog() -> list[dict]:
         "AND statusCategory != Done "
         "ORDER BY created DESC"
     )
-    params = urllib.parse.urlencode({
+    url = f"{JIRA_BASE}/rest/api/3/search/jql"
+    body = json.dumps({
         "jql": jql,
-        "fields": "summary,issuetype,priority,labels,customfield_10016,customfield_10028",
+        "fields": ["summary", "issuetype", "priority", "labels", "customfield_10016", "customfield_10028"],
         "maxResults": 100,
-    })
-    url = f"{JIRA_BASE}/rest/api/3/search?{params}"
-    req = urllib.request.Request(url, headers={
+    }).encode()
+    req = urllib.request.Request(url, data=body, headers={
         "Authorization": jira_auth_header(),
         "Accept": "application/json",
-    })
+        "Content-Type": "application/json",
+    }, method="POST")
     with urllib.request.urlopen(req, timeout=15) as resp:
         return json.loads(resp.read())["issues"]
 
