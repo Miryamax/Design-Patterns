@@ -52,24 +52,24 @@ def fetch_backlog() -> list[dict]:
         "AND statusCategory != Done "
         "ORDER BY created DESC"
     )
-    url = f"{JIRA_BASE}/rest/api/3/search/jql"
-    body = json.dumps({
+    params = urllib.parse.urlencode({
         "jql": jql,
-        "fields": ["summary", "issuetype", "priority", "labels", "customfield_10016", "customfield_10028"],
+        "fields": "summary,issuetype,priority,labels,customfield_10016",
         "maxResults": 100,
-    }).encode()
-    req = urllib.request.Request(url, data=body, headers={
+    })
+    url = f"{JIRA_BASE}/rest/api/3/search?{params}"
+    req = urllib.request.Request(url, headers={
         "Authorization": jira_auth_header(),
         "Accept": "application/json",
-        "Content-Type": "application/json",
-    }, method="POST")
+    })
     with urllib.request.urlopen(req, timeout=15) as resp:
         return json.loads(resp.read())["issues"]
 
 
 def pick_small(issues: list[dict]) -> dict:
-    # Prefer Tasks / Sub-tasks / Bugs (typically smaller than Stories/Epics)
-    for type_names in [["Task", "Sub-task", "Bug"], ["Story"]]:
+    # Prefer sub-tasks and tasks over stories/epics — they are typically smaller.
+    # EMM project uses "Sub-Dev" as its sub-task type.
+    for type_names in [["Task", "Sub-task", "Sub-Dev", "Bug"], ["Story"]]:
         pool = [i for i in issues if i["fields"]["issuetype"]["name"] in type_names]
         if pool:
             return random.choice(pool)
