@@ -67,13 +67,44 @@ def fetch_backlog() -> list[dict]:
         return json.loads(resp.read())["issues"]
 
 
+_SMALL_SIGNALS = [
+    "get api", "add ", "define ", "create ", "update ", "fix ", "rename ",
+    "mapping", "config", "constant", "label", "cleanup", "typo", "missing",
+]
+_LARGE_SIGNALS = [
+    "epic", "migration", "refactor", "redesign", "architecture", "phase ",
+    "implement all", "apply to all", "all controllers", "all flows", "all screens",
+]
+
+
+def _smallness_score(issue: dict) -> float:
+    fields = issue["fields"]
+    summary = fields.get("summary", "").lower()
+    itype = fields.get("issuetype", {}).get("name", "")
+    sp = fields.get("customfield_10016") or fields.get("customfield_10028")
+
+    score = {"Task": 3, "Sub-task": 3, "Bug": 2, "Story": 1}.get(itype, 0)
+    score -= {"Epic": 10}.get(itype, 0)
+
+    if sp is not None:
+        score += 5 if sp <= 2 else (2 if sp <= 3 else -3)
+
+    for kw in _SMALL_SIGNALS:
+        if kw in summary:
+            score += 1
+    for kw in _LARGE_SIGNALS:
+        if kw in summary:
+            score -= 2
+
+    return score
+
+
 def pick_small(issues: list[dict]) -> dict:
-    # Prefer Tasks / Sub-tasks / Bugs (typically smaller than Stories/Epics)
-    for type_names in [["Task", "Sub-task", "Bug"], ["Story"]]:
-        pool = [i for i in issues if i["fields"]["issuetype"]["name"] in type_names]
-        if pool:
-            return random.choice(pool)
-    return random.choice(issues)
+    scored = sorted(issues, key=_smallness_score, reverse=True)
+    # Randomly pick from top 20 % or top 5, whichever is larger, to avoid
+    # the same issue appearing every day.
+    pool_size = max(5, len(scored) // 5)
+    return random.choice(scored[:pool_size])
 
 
 def build_teams_card(issue: dict) -> dict:
