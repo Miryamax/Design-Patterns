@@ -50,6 +50,7 @@ def fetch_backlog() -> list[dict]:
         f"project = {JIRA_PROJECT} "
         "AND sprint is EMPTY "
         "AND statusCategory != Done "
+        "AND issuetype != Epic "
         "ORDER BY created DESC"
     )
     url = f"{JIRA_BASE}/rest/api/3/search/jql"
@@ -68,8 +69,8 @@ def fetch_backlog() -> list[dict]:
 
 
 def pick_small(issues: list[dict]) -> dict:
-    # Prefer Tasks / Sub-tasks / Bugs (typically smaller than Stories/Epics)
-    for type_names in [["Task", "Sub-task", "Bug"], ["Story"]]:
+    # Prefer subtask-level work (Sub-Dev, Sub-QA) and Bugs over Stories
+    for type_names in [["Sub-Dev", "Sub-QA", "Sub-task", "Task", "Bug"], ["Story"]]:
         pool = [i for i in issues if i["fields"]["issuetype"]["name"] in type_names]
         if pool:
             return random.choice(pool)
