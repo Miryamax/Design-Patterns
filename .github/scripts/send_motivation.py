@@ -26,10 +26,10 @@ ISRAEL_TZ = timezone(timedelta(hours=3))  # IDT (UTC+3); IST (winter) is UTC+2
 MOTIVATIONAL = """\
 המציאות של יהודי בעולם היא יקרה וחשובה מאוד מאוד. גם בלי שיעשה כלום לקיום שלו בעולם יש משמעות אדירה. בעצם העובדה שיהודי חי, הוא ממלא תפקיד גדול ועושה לבורא נחת רוח עצומה.
 
-**ועכשיו בשפת הייטק:**
+ועכשיו בשפת הייטק:
 אני לא חייבת לאהוב את הסביבה כדי לצמוח ממנה. כל יום שאני מעמיקה את הידע שלי, בונה השפעה ומחזקת את היכולות שלי - אני מתקדמת לכיוון שאני רוצה להיות בו. המטרה שלי היא לא להיות העובדת הכי מתוסכלת בחדר. המטרה שלי היא להיות האדם שאליו פונים כשצריך להבין, להוביל ולפתור בעיות.
 
-**ועכשיו לתכלס:**
+ועכשיו לתכלס:
 - ב-Code Review: להילחם רק על מה שבאמת חשוב.
 - להתמקד במה שבשליטתי, לא במה שמעצבן אותי.
 - לנצל זמני אוויר ללמידה ולהעמקה במערכת.
@@ -68,12 +68,17 @@ def fetch_backlog() -> list[dict]:
 
 
 def pick_small(issues: list[dict]) -> dict:
+    # Seed with today's date so the same issue is picked consistently within a day
+    # but changes each day.
+    today_seed = int(datetime.now(ISRAEL_TZ).strftime("%Y%m%d"))
+    rng = random.Random(today_seed)
+
     # Prefer Tasks / Sub-tasks / Bugs (typically smaller than Stories/Epics)
     for type_names in [["Task", "Sub-task", "Bug"], ["Story"]]:
         pool = [i for i in issues if i["fields"]["issuetype"]["name"] in type_names]
         if pool:
-            return random.choice(pool)
-    return random.choice(issues)
+            return rng.choice(pool)
+    return rng.choice(issues)
 
 
 def build_teams_card(issue: dict) -> dict:
