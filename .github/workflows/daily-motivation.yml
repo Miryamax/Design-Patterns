@@ -1,35 +1,112 @@
 name: Daily Morning Motivation
 
-# Runs at 07:00 UTC = 10:00 AM Israel time (IDT, UTC+3) on weekdays.
-# In winter (IST, UTC+2) this fires at 09:00 — adjust cron to "0 8 * * 1-5" if needed.
-#
-# Required repository secrets (Settings → Secrets → Actions):
-#   JIRA_EMAIL        - your Jira login email (miryamma@etoro.com)
-#   JIRA_TOKEN        - Jira API token from https://id.atlassian.com/manage-profile/security/api-tokens
-#   TEAMS_WEBHOOK_URL - incoming-webhook URL from your Teams channel connector
-
 on:
   schedule:
-    - cron: '0 7 * * 1-5'   # weekdays 10:00 AM Israel time (IDT)
-  workflow_dispatch:          # manual trigger for testing
+    # 07:00 UTC = 10:00 AM Israel summer time (IDT = UTC+3)
+    # Change to '0 8 * * *' in winter (IST = UTC+2)
+    - cron: '0 7 * * *'
+  workflow_dispatch:  # allows manual trigger for testing
 
 jobs:
-  send-motivation:
-    name: Send daily motivation + Jira task
+  morning-notification:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Send Teams notification
+      - name: Send morning motivation with daily Jira task
         env:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
-          JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
-        run: python3 .github/scripts/send_motivation.py
+        run: |
+          pip install requests --quiet
+          python3 - <<'PYEOF'
+          import requests, random, os, sys
+          from datetime import date
+          from base64 import b64encode
+
+          jira_email = os.environ['JIRA_EMAIL']
+          jira_token = os.environ['JIRA_API_TOKEN']
+          teams_url  = os.environ['TEAMS_WEBHOOK_URL']
+
+          # Fetch EMM backlog (not in any sprint, not done)
+          auth = b64encode(f"{jira_email}:{jira_token}".encode()).decode()
+          jql  = (
+              'project = EMM '
+              'AND sprint not in openSprints() '
+              'AND sprint not in closedSprints() '
+              'AND statusCategory != Done '
+              'ORDER BY created DESC'
+          )
+          r = requests.get(
+              'https://etoro-jira.atlassian.net/rest/api/3/search',
+              headers={'Authorization': f'Basic {auth}', 'Content-Type': 'application/json'},
+              params={'jql': jql, 'maxResults': 50,
+                      'fields': 'summary,priority,labels,issuetype,customfield_10016'}
+          )
+          issues = r.json().get('issues', [])
+
+          # Prefer light-looking issues, avoid spikes/epics/migrations
+          light_kw = ['fix', 'add', 'update', 'cleanup', 'refactor', 'rename',
+                      'test', 'doc', 'label', 'log', 'typo', 'minor', 'ops:']
+          heavy_kw = ['spike', 'epic', 'migration', 'architecture']
+          light = [
+              i for i in issues
+              if any(k in i['fields']['summary'].lower() for k in light_kw)
+              and not any(k in i['fields']['summary'].lower() for k in heavy_kw)
+          ]
+          pool = light if light else issues
+          task = random.choice(pool) if pool else None
+
+          # Build Teams MessageCard
+          today = date.today().strftime('%A, %d/%m/%Y')
+
+          MOTIVATION = (
+              "המציאות של יהודי בעולם היא יקרה וחשובה מאוד מאוד. גם בלי שיעשה כלום "
+              "לקיומו בעולם יש משמעות אדירה. בעצם העובדה שיהודי חי, הוא ממלא תפקיד "
+              "גדול ועושה לבורא נחת רוח עצומה.\n\n"
+              "ועכשיו בשפת הייטק:\n"
+              "אני לא חייבת לאהוב את הסביבה כדי לצמוח ממנה. כל יום שאני מעמיקה את "
+              "הידע שלי, בונה השפעה ומחזקת את היכולות שלי - אני מתקדמת לכיוון שאני "
+              "רוצה להיות בו. המטרה שלי היא לא להיות העובדת הכי מתוסכלת בחדר. המטרה "
+              "שלי היא להיות האדם שאליו פונים כשצריך להבין, להוביל ולפתור בעיות.\n\n"
+              "ועכשיו לתכלס:\n"
+              "• ב-Code Review: להילחם רק על מה שבאמת חשוב.\n"
+              "• להתמקד במה שבשליטי, לא במה שמעצבן אותי.\n"
+              "• לנצל זמני אוויר ללמידה ולהעמקה במערכת.\n"
+              "• להבין עוד חלק אחד במערכת בכל יום.\n"
+              "• להשאיר כל דבר קצת יותר טוב ממה שמצאתי אותו.\n"
+              "• למדוד את היום לפי מה שלמדתי והשפעתי, לא לפי איכות הניהול."
+          )
+
+          if task:
+              key      = task['key']
+              summary  = task['fields']['summary']
+              prio     = (task['fields'].get('priority') or {}).get('name', '')
+              task_url = f"https://etoro-jira.atlassian.net/browse/{key}"
+              task_text = f"**[{key}]({task_url})** — {summary}" + (f"  _(Priority: {prio})_" if prio else "")
+          else:
+              task_text = "No backlog items found."
+
+          payload = {
+              "@type": "MessageCard",
+              "@context": "http://schema.org/extensions",
+              "themeColor": "6B48FF",
+              "summary": f"Good morning ☀️ {today}",
+              "sections": [
+                  {
+                      "activityTitle": f"☀️ Good morning — {today}",
+                      "activitySubtitle": "Daily Reminder",
+                      "activityText": MOTIVATION,
+                  },
+                  {
+                      "activityTitle": "\U0001f4cb Today's Jira task",
+                      "activityText": task_text,
+                  }
+              ]
+          }
+
+          resp = requests.post(teams_url, json=payload)
+          print(f"Teams response: {resp.status_code}")
+          if resp.text:
+              print(resp.text[:300])
+          sys.exit(0 if resp.ok else 1)
+          PYEOF
