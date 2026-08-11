@@ -1,1 +1,3 @@
-﻿Console.Title = "Composite";
+﻿
+Console.Title = "Composite";
+
